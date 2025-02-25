@@ -83,7 +83,7 @@ size_t Decoder::decompressChunkInto(const uint8_t* data, size_t size, uint8_t* o
         if (this->currentBlock.remaining() == 0) {
             // Re-align the bitstream to 16 bits, by reading 1 byte
             if (this->currentBlock.type() == BlockType::Uncompressed && this->currentBlock.size() % 2 != 0) {
-                stream.read<uint8_t>();
+                stream.readByte();
             }
 
             this->currentBlock = this->readBlock(stream, lzxd::readBlockHeader(stream));
@@ -143,7 +143,7 @@ Block Decoder::readBlock(BitStream& stream, const BlockHeader& header) {
 
     switch (header.type) {
         case BlockType::Uncompressed: {
-            stream.align(2); // Align to 16-bit boundary
+            stream.align(); // Align to 16-bit boundary
 
             uint32_t r0 = stream.readLittleEndian<uint32_t>();
             uint32_t r1 = stream.readLittleEndian<uint32_t>();

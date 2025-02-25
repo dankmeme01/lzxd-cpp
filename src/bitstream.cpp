@@ -1,5 +1,8 @@
+#include <cstdint>
 #include <lzxd/bitstream.hpp>
+#include <lzxd/error.hpp>
 #include <stdexcept>
+#include <bit>
 
 #if defined(_MSC_VER) && !defined(__clang__)
 # include <stdlib.h>
@@ -21,11 +24,16 @@ namespace detail {
     template<> uint16_t byteswap<uint16_t>(uint16_t input) { return BSWAP16(input); }
     template<> uint32_t byteswap<uint32_t>(uint32_t input) { return BSWAP32(input); }
     template<> uint64_t byteswap<uint64_t>(uint64_t input) { return BSWAP64(input); }
+
+    uint16_t rotleftu16(uint16_t val, uint8_t bits) {
+        // This is identical to Rust's u16::rotate_left
+        return (val << bits) | (val >> (16 - bits));
+    }
 } // namespace detail
 
 BitStream::BitStream(const uint8_t* data, size_t size) : BitStream(std::vector<uint8_t>(data, data + size)) {}
 
-BitStream::BitStream(std::vector<uint8_t> data) : m_data(std::move(data)), m_position(0), m_bitOffset(0) {}
+BitStream::BitStream(std::vector<uint8_t> data) : m_data(std::move(data)), m_position(0), m_nextNumber(0), m_remainingBits(0) {}
 
 std::vector<uint8_t>& BitStream::data() {
     return m_data;
@@ -43,10 +51,6 @@ size_t BitStream::position() const {
     return m_position;
 }
 
-size_t BitStream::bitOffset() const {
-    return m_bitOffset;
-}
-
 size_t BitStream::remainingBytes() const {
     return m_data.size() - m_position;
 }
@@ -55,12 +59,19 @@ bool BitStream::eof() const {
     return m_position >= m_data.size();
 }
 
-void BitStream::align(size_t alignment) {
-    this->_advanceUntilAligned(alignment);
+uint8_t BitStream::readByte() {
+    this->_failIfEof();
+    uint8_t byte = m_data[m_position];
+    this->_advanceBytes(1);
+    return byte;
 }
 
-void BitStream::skipBits(size_t count) {
-    this->_advanceBits(count);
+void BitStream::align() {
+    if (m_remainingBits == 0) {
+        this->readBits(16);
+    } else {
+        m_remainingBits = 0;
+    }
 }
 
 std::vector<uint8_t> BitStream::intoVector() {
@@ -81,15 +92,11 @@ std::vector<uint8_t> BitStream::peekBytes(size_t count) const {
 
 void BitStream::readBytesInto(uint8_t* output, size_t count) {
     this->peekBytesInto(output, count);
-    this->align(1);
     this->_advanceBytes(count);
 }
 
 void BitStream::peekBytesInto(uint8_t* output, size_t count) const {
     auto startPos = m_position;
-    if (m_bitOffset != 0) {
-        startPos++;
-    }
 
     if (startPos + count > m_data.size()) {
         this->_oob();
@@ -99,83 +106,103 @@ void BitStream::peekBytesInto(uint8_t* output, size_t count) const {
 }
 
 bool BitStream::_readBit() {
-    auto ret = this->_peekBit();
-    this->_advanceBits(1);
-    return ret;
-}
-
-bool BitStream::_peekBit() const {
-    this->_failIfEof();
-    return (m_data[m_position] >> (8 - m_bitOffset)) & 1;
-}
-
-uint64_t BitStream::_readBits(size_t size) {
-    this->_failIfEof();
-
-    // check if there is enough space
-    if (m_position + (m_bitOffset + size) / 8 > m_data.size()) {
-        this->_oob();
+    if (m_remainingBits == 0) {
+        this->_advanceBuffer();
     }
 
-    uint64_t result = 0;
-    size_t remainingBits = size;
+    m_remainingBits--;
+    m_nextNumber = detail::rotleftu16(m_nextNumber, 1);
+    return m_nextNumber & 1;
+}
 
-    while (remainingBits) {
-        if (m_position >= m_data.size()) {
-            this->_oob();
+uint16_t BitStream::_readBitsOneWord(size_t size) {
+    LZXD_ASSERT(size <= 16);
+
+    if (size <= m_remainingBits) {
+        this->m_remainingBits -= size;
+
+        // rotate `m_nextNumber` left by `size` bits
+        m_nextNumber = detail::rotleftu16(m_nextNumber, size);
+
+        return m_nextNumber & ((1 << size) - 1);
+    }
+
+    uint16_t hi = detail::rotleftu16(m_nextNumber, m_remainingBits) & ((1 << m_remainingBits) - 1);
+    size -= m_remainingBits;
+    this->_advanceBuffer();
+
+    m_remainingBits -= size;
+    this->m_nextNumber = detail::rotleftu16(m_nextNumber, size);
+
+    // `bits` may be 16 which would overflow the left shift, operate on `u32` and trunc.
+    uint16_t lo = m_nextNumber & (((uint16_t)(1ul << size)) - 1);
+
+    return (uint16_t)((uint32_t)hi << size) | lo;
+}
+
+uint32_t BitStream::_readBits(size_t count) {
+    if (count <= 16) {
+        return this->_readBitsOneWord(count);
+    }
+
+    LZXD_ASSERT(count <= 32);
+
+    auto hi = this->_readBitsOneWord(16);
+    auto lo = this->_readBitsOneWord(count - 16);
+
+    return (hi << (count - 16)) | lo;
+}
+
+uint16_t BitStream::_peekBitsOneWord(size_t count) {
+    LZXD_ASSERT(count <= 16);
+
+    if (count <= m_remainingBits) {
+        return m_nextNumber >> (m_remainingBits - count);
+    }
+
+    uint16_t hi = detail::rotleftu16(m_nextNumber, m_remainingBits) & ((1 << m_remainingBits) - 1);
+    count -= m_remainingBits;
+
+    // We may peek more than we need (i.e. at the end of a chunk), due to the way
+    // our decoder is implemented. This is a bit ugly but luckily we can pretend
+    // there are just zeros after.
+    uint16_t n;
+    if (this->eof()) {
+        n = 0;
+    } else {
+        std::memcpy(&n, m_data.data() + m_position, sizeof(uint16_t));
+        if constexpr (std::endian::native == std::endian::big) {
+            n = detail::byteswap(n);
         }
-
-        uint8_t currentByte = m_data[m_position];
-        size_t availableBits = 8 - m_bitOffset;
-        size_t bitsToRead = std::min(remainingBits, availableBits);
-
-        // calculate shift and mask to extract the desired bits
-        size_t shift = availableBits - bitsToRead;
-        uint8_t mask = (1 << bitsToRead) - 1;
-        uint8_t chunk = (currentByte >> shift) & mask;
-
-        // shift the result and append the new bits
-        result = (result << bitsToRead) | chunk;
-        remainingBits -= bitsToRead;
-
-        // update position and bit offset
-        this->_advanceBits(bitsToRead);
     }
 
-    return result;
+    uint16_t lo = detail::rotleftu16(n, count) & (((uint16_t)(1ul << count)) - 1);
+    return (uint16_t)((uint32_t)hi << count) | lo;
 }
 
-uint64_t BitStream::_peekBits(size_t size) const {
-    this->_failIfEof();
-
-    // check if there is enough space
-    if (m_position + (m_bitOffset + size) / 8 > m_data.size()) {
-        this->_oob();
+uint32_t BitStream::_peekBits(size_t count) {
+    if (count <= 16) {
+        return this->_peekBitsOneWord(count);
     }
 
-    uint64_t result = 0;
-    size_t remainingBits = size;
+    LZXD_ASSERT(count <= 32);
 
-    while (remainingBits) {
-        if (m_position >= m_data.size()) {
-            this->_oob();
-        }
+    // Store state of the bitstream
+    struct State {
+        uint16_t nextNumber;
+        uint8_t remainingBits;
+        size_t position;
+    } state = {m_nextNumber, m_remainingBits, m_position};
 
-        uint8_t currentByte = m_data[m_position];
-        size_t availableBits = 8 - m_bitOffset;
-        size_t bitsToRead = std::min(remainingBits, availableBits);
+    uint16_t hi = this->_readBitsOneWord(16);
+    uint16_t lo = this->_peekBitsOneWord(count - 16);
 
-        // calculate shift and mask to extract the desired bits
-        size_t shift = availableBits - bitsToRead;
-        uint8_t mask = (1 << bitsToRead) - 1;
-        uint8_t chunk = (currentByte >> shift) & mask;
+    // Restore state of the bitstream
+    m_nextNumber = state.nextNumber;
+    m_remainingBits = state.remainingBits;
+    m_position = state.position;
 
-        // shift the result and append the new bits
-        result = (result << bitsToRead) | chunk;
-        remainingBits -= bitsToRead;
-    }
-
-    return result;
+    return (hi << (count - 16)) | lo;
 }
 
 void BitStream::_oob() const {
@@ -188,28 +215,23 @@ void BitStream::_failIfEof() const {
     }
 }
 
-void BitStream::_advanceBits(size_t count) {
-    this->_advanceBytes((count + m_bitOffset) / 8);
-    m_bitOffset = (m_bitOffset + count) % 8;
+void BitStream::_advanceBuffer() {
+    this->_failIfEof();
+    this->m_remainingBits = 16;
+    std::memcpy(&m_nextNumber, m_data.data() + m_position, sizeof(uint16_t));
+
+    // Since we read a little-endian integer, byteswap if we are on a big-endian architecture
+    if constexpr (std::endian::native == std::endian::big) {
+        m_nextNumber = detail::byteswap(m_nextNumber);
+    }
+
+    m_position += sizeof(uint16_t);
 }
 
 void BitStream::_advanceBytes(size_t count) {
     m_position += count;
     if (m_position > m_data.size()) {
         this->_oob();
-    }
-}
-
-void BitStream::_advanceUntilAligned(size_t alignment) {
-    // advance until a whole byte
-    if (m_bitOffset != 0) {
-        m_bitOffset = 0;
-        m_position++;
-    }
-
-    // advance until bytes are aligned
-    while (m_position % alignment != 0 && m_position < m_data.size()) {
-        m_position++;
     }
 }
 

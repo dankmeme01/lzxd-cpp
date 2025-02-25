@@ -11,6 +11,9 @@ namespace detail {
     T byteswap(T input);
 } // namespace detail
 
+// A data stream where data is interpreted as 16-bit little-endian integers.
+// See (https://github.com/Lonami/lzxd/blob/master/src/bitstream.rs)
+// and (https://msopenspecs.azureedge.net/files/MS-PATCH/%5bMS-PATCH%5d.pdf) section 3
 class BitStream {
 public:
     BitStream(const uint8_t* data, size_t size);
@@ -21,21 +24,20 @@ public:
 
     size_t size() const;
     size_t position() const;
-    size_t bitOffset() const;
     size_t remainingBytes() const;
 
     bool eof() const;
 
     // Reads an integer from the bitstream, advances the buffer position
     template <typename T = uint8_t>
-    T read() {
+    T readBits() {
         return this->readBits<sizeof(T), T>();
     }
 
     // Reads a little-endian integer from the bitstream, advances the buffer position
     template <typename T = uint8_t>
     T readLittleEndian() {
-        return detail::byteswap<T>(this->read<T>());
+        return detail::byteswap<T>(this->readBits<T>());
     }
 
     // Reads a single bit from the bitstream, advances the buffer position
@@ -58,22 +60,19 @@ public:
         return static_cast<T>(bits);
     }
 
+    // Reads a byte from the buffer, ignores the bit offset
+    uint8_t readByte();
+
     // Peeks an integer from the bitstream, does not advance the buffer position
     template <typename T = uint8_t>
-    T peek() const {
+    T peekBits() const {
         return this->peekBits<sizeof(T), T>();
     }
 
     // Peeks a little-endian integer from the bitstream, does not advance the buffer position
     template <typename T = uint8_t>
     T peekLittleEndian() const {
-        return detail::byteswap<T>(this->peek<T>());
-    }
-
-    // Peeks a single bit from the bitstream, does not advance the buffer position
-    template <typename T = uint8_t>
-    T peekBit() const {
-        return static_cast<T>(this->_peekBit());
+        return detail::byteswap<T>(this->peekBits<T>());
     }
 
     // Peeks a number of bits from the bitstream, does not advance the buffer position
@@ -85,16 +84,13 @@ public:
 
     // Peeks a number of bits from the bitstream, does not advance the buffer position
     template <typename T = uint8_t>
-    T peekBits(size_t count) const {
+    T peekBits(size_t count) {
         auto bits = this->_peekBits(count);
         return static_cast<T>(bits);
     }
 
     // Skips a certain amount of bits until the bit buffer is aligned to the given boundary, or EOF is reached. The argument is the wanted alignment in bytes.
-    void align(size_t alignment);
-
-    // Skips a given amount of bits
-    void skipBits(size_t count);
+    void align();
 
     // Resets the bitstream, returns the entire raw data.
     std::vector<uint8_t> intoVector();
@@ -116,21 +112,21 @@ public:
 private:
     std::vector<uint8_t> m_data;
     size_t m_position;
-    size_t m_bitOffset;
+    uint16_t m_nextNumber;
+    uint8_t m_remainingBits;  // remaining bits in m_nextNumber
 
     bool _readBit();
-    bool _peekBit() const;
 
-    uint64_t _readBits(size_t count);
-    uint64_t _peekBits(size_t count) const;
+    uint16_t _readBitsOneWord(size_t count);
+    uint32_t _readBits(size_t count);
+    uint16_t _peekBitsOneWord(size_t count);
+    uint32_t _peekBits(size_t count);
 
     void _oob() const;
     void _failIfEof() const;
 
-    void _advanceBits(size_t count);
+    void _advanceBuffer();
     void _advanceBytes(size_t count);
-    void _advanceUntilAligned(size_t alignment);
-
 };
 
 } // namespace lzxd

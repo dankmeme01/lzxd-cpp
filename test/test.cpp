@@ -1,8 +1,37 @@
 #include <lzxd/lzxd.hpp>
+#include <lzxd/error.hpp>
 #include <lzxd/ldi.hpp>
 #include <iostream>
 
+void testBitBuffer() {
+    std::vector<uint8_t> exampleData = {
+        0b010'00001,
+        0b0110'0001,
+        0b0001'1100,
+        0b0000'0000,
+    };
+
+    lzxd::BitStream stream1(exampleData);
+    LZXD_ASSERT(stream1.readBit() == false);
+    LZXD_ASSERT(stream1.readBit() == true);
+    LZXD_ASSERT(stream1.readBit() == true);
+    LZXD_ASSERT(stream1.readBit() == false);
+    LZXD_ASSERT(stream1.readBit() == false);
+    LZXD_ASSERT(stream1.readBit() == false);
+    LZXD_ASSERT(stream1.readBit() == false);
+    LZXD_ASSERT(stream1.readBit() == true);
+
+    LZXD_ASSERT(stream1.readBits(4) == 0b0100);
+    LZXD_ASSERT(stream1.readBits(4) == 0b0001);
+    LZXD_ASSERT(stream1.readBits(8) == 0);
+    LZXD_ASSERT(stream1.readBits(8) == 0b0001'1100);
+
+    LZXD_ASSERT(stream1.eof());
+}
+
 int main() {
+    testBitBuffer();
+
     std::vector<uint8_t> exampleData = {
         0b010'00001,
         0b0110'0001,
@@ -11,6 +40,7 @@ int main() {
     };
 
     lzxd::BitStream bs{std::move(exampleData)};
+    std::cout << "BS size: " << bs.size() << std::endl;
     auto block = lzxd::readBlockHeader(bs);
 
     std::cout << "Block type: " << static_cast<int>(block.type) << std::endl;

@@ -14,7 +14,7 @@ uint16_t Tree::decodeElement(BitStream& stream) const {
     auto code = this->m_huffmanCodes[idx];
 
     // …and then advancing the stream by the length of the code
-    stream.skipBits(this->m_lengths[code]);
+    stream.readBits(this->m_lengths[code]);
 
     return code;
 }
