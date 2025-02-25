@@ -75,7 +75,7 @@ BlockHeader readBlockHeader(BitStream& stream) {
         throw LzxdError("readBlockFromStream: invalid block type");
     }
 
-    block.size = stream.readBits<uint32_t>(24);
+    block.size = stream.readU24be();
     return block;
 }
 

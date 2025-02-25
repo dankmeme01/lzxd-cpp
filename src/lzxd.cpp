@@ -46,25 +46,15 @@ Decoder::Decoder(size_t windowSize)
         1, 1, 1
       }) {}
 
-std::vector<uint8_t> Decoder::decompressChunk(const std::vector<uint8_t>& data) {
-    return this->decompressChunk(data.data(), data.size());
+std::vector<uint8_t> Decoder::decompressChunk(const std::vector<uint8_t>& data, size_t outputSize) {
+    return this->decompressChunk(data.data(), data.size(), outputSize);
 }
 
-std::vector<uint8_t> Decoder::decompressChunk(const uint8_t* data, size_t size) {
-    std::vector<uint8_t> output;
-    this->decompressChunkInto(data, size, output);
-    return output;
-}
-
-size_t Decoder::decompressChunkInto(const std::vector<uint8_t>& data, std::vector<uint8_t>& output) {
-    return this->decompressChunkInto(data.data(), data.size(), output);
-}
-
-size_t Decoder::decompressChunkInto(const uint8_t* data, size_t size, std::vector<uint8_t>& output) {
-    output.resize(this->windowSize); // TODO: idk if this is correct?
-    size_t s = this->decompressChunkInto(data, size, output.data(), output.size());
+std::vector<uint8_t> Decoder::decompressChunk(const uint8_t* data, size_t size, size_t outputSize) {
+    std::vector<uint8_t> output(outputSize);
+    size_t s = this->decompressChunkInto(data, size, output.data(), outputSize);
     output.resize(s);
-    return s;
+    return output;
 }
 
 size_t Decoder::decompressChunkInto(const std::vector<uint8_t>& data, uint8_t* output, size_t outputSize) {
@@ -145,9 +135,9 @@ Block Decoder::readBlock(BitStream& stream, const BlockHeader& header) {
         case BlockType::Uncompressed: {
             stream.align(); // Align to 16-bit boundary
 
-            uint32_t r0 = stream.readLittleEndian<uint32_t>();
-            uint32_t r1 = stream.readLittleEndian<uint32_t>();
-            uint32_t r2 = stream.readLittleEndian<uint32_t>();
+            uint32_t r0 = stream.readU32le();
+            uint32_t r1 = stream.readU32le();
+            uint32_t r2 = stream.readU32le();
 
             return UncompressedBlock {
                 BaseBlock {header.size, header.size},

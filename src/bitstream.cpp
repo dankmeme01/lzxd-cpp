@@ -2,6 +2,7 @@
 #include <lzxd/bitstream.hpp>
 #include <lzxd/error.hpp>
 #include <stdexcept>
+#include <cstring>
 #include <bit>
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -64,6 +65,35 @@ uint8_t BitStream::readByte() {
     uint8_t byte = m_data[m_position];
     this->_advanceBytes(1);
     return byte;
+}
+
+uint32_t BitStream::readU32le() {
+    uint16_t lo = this->_readBitsOneWord(16);
+    uint16_t hi = this->_readBitsOneWord(16);
+
+    if constexpr (std::endian::native == std::endian::big) {
+        lo = detail::byteswap(lo);
+        hi = detail::byteswap(hi);
+    }
+
+    uint32_t ret;
+    std::memcpy(&ret, &lo, sizeof(uint16_t));
+    std::memcpy(reinterpret_cast<uint8_t*>(&ret) + sizeof(uint16_t), &hi, sizeof(uint16_t));
+
+    // IDK how correct this is lol
+    // Hopefully no one is running this on a big endian system anyway
+    if constexpr (std::endian::native == std::endian::big) {
+        ret = detail::byteswap(ret);
+    }
+
+    return ret;
+}
+
+uint32_t BitStream::readU24be() {
+    uint16_t hi = this->_readBits(16);
+    uint16_t lo = this->_readBits(8);
+
+    return (hi << 8) | lo;
 }
 
 void BitStream::align() {

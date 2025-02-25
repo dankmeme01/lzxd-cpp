@@ -34,11 +34,11 @@ public:
         return this->readBits<sizeof(T), T>();
     }
 
-    // Reads a little-endian integer from the bitstream, advances the buffer position
-    template <typename T = uint8_t>
-    T readLittleEndian() {
-        return detail::byteswap<T>(this->readBits<T>());
-    }
+    // Reads a little-endian 32-bit integer from the bitstream, advances the buffer position
+    uint32_t readU32le();
+
+    // Reads a big-endian 24-bit integer from the bitstream, advances the buffer position
+    uint32_t readU24be();
 
     // Reads a single bit from the bitstream, advances the buffer position
     template <typename T = bool>
