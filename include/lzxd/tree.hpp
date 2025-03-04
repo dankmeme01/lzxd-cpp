@@ -26,7 +26,7 @@ class CanonicalTree {
 public:
     std::vector<uint8_t> m_lengths;
 
-    CanonicalTree(size_t count) : m_lengths(count) {}
+    CanonicalTree(std::vector<uint8_t> lengths) : m_lengths(std::move(lengths)) {}
 
     std::optional<Tree> createInstance() const;
     void updateRangeWithPretree(BitStream& stream, size_t start, size_t end);

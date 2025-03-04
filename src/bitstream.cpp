@@ -90,8 +90,8 @@ uint32_t BitStream::readU32le() {
 }
 
 uint32_t BitStream::readU24be() {
-    uint16_t hi = this->_readBits(16);
-    uint16_t lo = this->_readBits(8);
+    uint32_t hi = this->_readBits(16);
+    uint32_t lo = this->_readBits(8);
 
     return (hi << 8) | lo;
 }
@@ -187,7 +187,7 @@ uint16_t BitStream::_peekBitsOneWord(size_t count) {
     LZXD_ASSERT(count <= 16);
 
     if (count <= m_remainingBits) {
-        return m_nextNumber >> (m_remainingBits - count);
+        return detail::rotleftu16(m_nextNumber, count) & static_cast<uint16_t>((1 << count) - 1);
     }
 
     uint16_t hi = detail::rotleftu16(m_nextNumber, m_remainingBits) & ((1 << m_remainingBits) - 1);

@@ -4,13 +4,13 @@
 namespace lzxd {
 
 Tree Tree::fromPathLengths(std::vector<uint8_t> lengths) {
-    CanonicalTree ctree(lengths.size());
+    CanonicalTree ctree(lengths);
     return ctree.createInstance().value();
 }
 
 uint16_t Tree::decodeElement(BitStream& stream) const {
     // Perform the inverse translation, peeking as many bits as our tree is…
-    size_t idx = stream.peekBits<size_t>(this->m_largestLength);
+    uint32_t idx = stream.peekBits<uint32_t>(this->m_largestLength);
     auto code = this->m_huffmanCodes[idx];
 
     // …and then advancing the stream by the length of the code
@@ -30,8 +30,8 @@ std::optional<Tree> CanonicalTree::createInstance() const {
     tree.m_huffmanCodes = std::vector<uint16_t>(1 << tree.m_largestLength);
 
     size_t pos = 0;
-    for (size_t bit = 1; bit <= tree.m_largestLength; bit++) {
-        auto amount = 1 << (tree.m_largestLength - bit);
+    for (uint8_t bit = 1; bit <= tree.m_largestLength; bit++) {
+        size_t amount = 1 << (tree.m_largestLength - bit);
 
         for (size_t code = 0; code < this->m_lengths.size(); code++) {
             // As soon as a code's path length matches with our bit index write the code as
@@ -65,11 +65,12 @@ static Tree readPretree(BitStream& stream) {
 void CanonicalTree::updateRangeWithPretree(BitStream& stream, size_t start, size_t end) {
     Tree pretree = readPretree(stream);
 
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = start; i < end;) {
         auto code = pretree.decodeElement(stream);
 
         if (code <= 16) {
-            this->m_lengths[i] = (17 + this->m_lengths[i] - code) % 17;
+            this->m_lengths[i] = (static_cast<uint8_t>(17 + this->m_lengths[i] - code) % 17);
+            i++;
         } else if (code == 17) {
             auto zeros = stream.readBits<uint8_t>(4);
 
@@ -96,7 +97,7 @@ void CanonicalTree::updateRangeWithPretree(BitStream& stream, size_t start, size
                 throw LzxdError("updateRangeWithPretree: invalid newCode");
             }
 
-            auto value = (17 + this->m_lengths[i] - newCode) % 17;
+            auto value = static_cast<uint8_t>(17 + this->m_lengths[i] - newCode) % 17;
             for (size_t j = 0; j < same + 4; j++) {
                 this->m_lengths[i + j] = value;
             }

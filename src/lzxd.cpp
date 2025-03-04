@@ -39,8 +39,8 @@ namespace detail {
 Decoder::Decoder(size_t windowSize)
     : windowSize(windowSize),
       window(windowSize),
-      mainTree(256 + 8 * detail::positionSlotsFor(windowSize)),
-      lengthTree(249),
+      mainTree(std::vector<uint8_t>(256 + 8 * detail::positionSlotsFor(windowSize))),
+      lengthTree(std::vector<uint8_t>(249)),
       currentBlock(UncompressedBlock {
         BaseBlock {0, 0},
         1, 1, 1

@@ -5,6 +5,17 @@
 #include <filesystem>
 #include <fstream>
 
+#if defined(_MSC_VER) && !defined(__clang__)
+# include <stdlib.h>
+# define BSWAP16(val) _byteswap_ushort(val)
+# define BSWAP32(val) _byteswap_ulong(val)
+# define BSWAP64(val) _byteswap_uint64(val)
+#else
+# define BSWAP16(val) (uint16_t)((val >> 8) | (val << 8))
+# define BSWAP32(val) __builtin_bswap32(val)
+# define BSWAP64(val) __builtin_bswap64(val)
+#endif
+
 void testBitBuffer() {
     []{
         // Test readU32le
@@ -92,49 +103,94 @@ void testDecoder() {
     }();
 }
 
+void decodeBlock(std::filesystem::path path) {
+    size_t windowSize = 0x8000;
+
+    // Read the file
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        std::cerr << "Failed to open file " << path << std::endl;
+        return;
+    }
+
+    std::vector<uint8_t> data(std::istreambuf_iterator<char>(file), {});
+
+    lzxd::Decoder decoder(windowSize);
+    auto decompressed = decoder.decompressChunk(data, 0x8000);
+
+    // Write file
+    auto outpath = path.replace_extension(".out");
+    std::ofstream outfile(outpath, std::ios::binary);
+    if (!outfile) {
+        std::cerr << "Failed to open file " << outpath << std::endl;
+        return;
+    }
+
+    outfile.write(reinterpret_cast<const char*>(decompressed.data()), decompressed.size());
+}
+
+void decodeDatabase(std::filesystem::path path) {
+    // Decode a .gmsodf database
+
+    // Read the file
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        std::cerr << "Failed to open file " << path << std::endl;
+        return;
+    }
+
+    std::vector<uint8_t> data(std::istreambuf_iterator<char>(file), {});
+
+    uint16_t magic = BSWAP16(*reinterpret_cast<uint16_t*>(data.data()));
+    if (magic != 0x5c42) {
+        std::cerr << "Invalid magic number" << std::endl;
+        return;
+    }
+
+    uint16_t flags = BSWAP16(*reinterpret_cast<uint16_t*>(data.data() + 2)); // no idea what this really is, usually 00 01
+    uint16_t headerSize = BSWAP16(*reinterpret_cast<uint16_t*>(data.data() + 4));
+    uint32_t uncompressedSize = BSWAP32(*reinterpret_cast<uint32_t*>(data.data() + 6));
+
+    size_t dataBeginOffset = headerSize;
+
+    size_t currentPos = dataBeginOffset;
+    constexpr size_t windowSize = 0x8000;
+
+    lzxd::Decoder decoder(windowSize);
+
+    std::vector<uint8_t> output;
+
+    while (currentPos < data.size()) {
+        // read the next chunk
+        // uncompressed size is always equal to windowSize, except for the last chunk.
+        // compressed size is available as a 16-bit value at the beginning of the chunk
+        uint16_t compressedSize = BSWAP16(*reinterpret_cast<uint16_t*>(data.data() + currentPos));
+        currentPos += 2;
+
+        std::cout << "Chunk of size " << compressedSize << std::endl;
+
+        auto dechunk = decoder.decompressChunk(data.data() + currentPos, compressedSize, windowSize);
+        output.insert(output.end(), dechunk.begin(), dechunk.end());
+
+        currentPos += compressedSize;
+    }
+
+}
+
 int main(int argc, const char** argv) {
-    // If a path is passed as the first argument, decode it and save it.
+    // waa
 
-    // For debugger
-    const char* myargv[] = {
-        argv[0], "./testdata/1-src.bin"
-    };
-    argv = myargv;
-    argc = 2;
-
-    if (argc > 1) {
-        std::filesystem::path path = argv[1];
-
-        size_t windowSize;
-        if (argc > 2) {
-            windowSize = std::stoul(argv[2]);
-        } else {
-            windowSize = 0x8000;
+    if (argc > 2) {
+        std::string operation = argv[1];
+        if (operation == "decode-block") {
+            std::filesystem::path path = argv[2];
+            decodeBlock(path);
+            return 0;
+        } else if (operation == "decode-database") {
+            std::filesystem::path path = argv[2];
+            decodeDatabase(path);
+            return 0;
         }
-
-        // Read the file
-        std::ifstream file(path, std::ios::binary);
-        if (!file) {
-            std::cerr << "Failed to open file " << path << std::endl;
-            return 1;
-        }
-
-        std::vector<uint8_t> data(std::istreambuf_iterator<char>(file), {});
-
-        lzxd::Decoder decoder(windowSize);
-        auto decompressed = decoder.decompressChunk(data, 0x8000);
-
-        // Write file
-        auto outpath = path.replace_extension(".out");
-        std::ofstream outfile(outpath, std::ios::binary);
-        if (!outfile) {
-            std::cerr << "Failed to open file " << outpath << std::endl;
-            return 1;
-        }
-
-        outfile.write(reinterpret_cast<const char*>(decompressed.data()), decompressed.size());
-
-        return 0;
     }
 
     testBitBuffer();
