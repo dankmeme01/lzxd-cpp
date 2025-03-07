@@ -28,6 +28,8 @@ public:
     size_t decompressChunkInto(const std::vector<uint8_t>& data, uint8_t* output, size_t outputSize = 32768);
     size_t decompressChunkInto(const uint8_t* data, size_t size, uint8_t* output, size_t outputSize = 32768);
 
+    void reset();
+
 private:
     size_t windowSize;
     size_t decodedChunks = 0;
