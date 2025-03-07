@@ -152,7 +152,7 @@ void decodeDatabase(std::filesystem::path path) {
 
     uint16_t flags = BSWAP16(*reinterpret_cast<uint16_t*>(data.data() + 2)); // no idea what this really is, usually 00 01
     uint16_t headerSize = BSWAP16(*reinterpret_cast<uint16_t*>(data.data() + 4));
-    uint32_t uncompressedSize = BSWAP32(*reinterpret_cast<uint32_t*>(data.data() + 6));
+    uint32_t remainingUncBytes = BSWAP32(*reinterpret_cast<uint32_t*>(data.data() + 6));
 
     size_t dataBeginOffset = headerSize;
 
@@ -165,17 +165,24 @@ void decodeDatabase(std::filesystem::path path) {
 
     while (currentPos < data.size()) {
         // read the next chunk
-        // uncompressed size is always equal to windowSize, except for the last chunk.
+        // uncompressed size is always equal to 32768, except for the last chunk.
         // compressed size is available as a 16-bit value at the beginning of the chunk
         uint16_t compressedSize = BSWAP16(*reinterpret_cast<uint16_t*>(data.data() + currentPos));
         currentPos += 2;
 
         std::cout << "Chunk of size " << compressedSize << std::endl;
 
-        auto dechunk = decoder.decompressChunk(data.data() + currentPos, compressedSize, 32768);
+        // if we are on the last chunk, the decompressed size of this chunk is `remainingUncBytes`
+        size_t decSize = 32768;
+        if (remainingUncBytes < decSize) {
+            decSize = remainingUncBytes;
+        }
+
+        auto dechunk = decoder.decompressChunk(data.data() + currentPos, compressedSize, decSize);
         output.insert(output.end(), dechunk.begin(), dechunk.end());
 
         currentPos += compressedSize;
+        remainingUncBytes -= decSize;
     }
 
     // write to file
