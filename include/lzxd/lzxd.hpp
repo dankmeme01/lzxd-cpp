@@ -21,6 +21,7 @@ namespace detail {
 class Decoder {
 public:
     Decoder(size_t windowSize);
+    Decoder();
 
     std::vector<uint8_t> decompressChunk(const std::vector<uint8_t>& data, size_t outputSize = 32768);
     std::vector<uint8_t> decompressChunk(const uint8_t* data, size_t size, size_t outputSize = 32768);

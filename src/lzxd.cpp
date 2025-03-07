@@ -46,6 +46,8 @@ Decoder::Decoder(size_t windowSize)
         1, 1, 1
       }) {}
 
+Decoder::Decoder() : Decoder(0x80000) {}
+
 std::vector<uint8_t> Decoder::decompressChunk(const std::vector<uint8_t>& data, size_t outputSize) {
     return this->decompressChunk(data.data(), data.size(), outputSize);
 }
