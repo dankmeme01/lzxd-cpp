@@ -15,7 +15,7 @@ struct Window {
     void advance(size_t by);
     void copyFromSelf(size_t offset, size_t length);
     void copyFromBitstream(BitStream& stream, size_t length);
-    std::vector<uint8_t> pastView(size_t len);
+    uint8_t* pastView(size_t len);
 
     Window(size_t size) : data(size), position(0) {}
 };

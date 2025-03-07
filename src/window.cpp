@@ -64,7 +64,7 @@ void Window::copyFromBitstream(BitStream& stream, size_t length) {
     this->advance(length);
 }
 
-std::vector<uint8_t> Window::pastView(size_t len) {
+uint8_t* Window::pastView(size_t len) {
     if (len > 32 * 1024) {
         throw LzxdError("Window::pastView: chunk is too long");
     }
@@ -97,10 +97,7 @@ std::vector<uint8_t> Window::pastView(size_t len) {
         pos = this->position;
     }
 
-    return std::vector<uint8_t>(
-        this->data.begin() + pos - len,
-        this->data.begin() + pos
-    );
+    return this->data.data() + pos - len;
 }
 
 } // namespace lzxd::detail

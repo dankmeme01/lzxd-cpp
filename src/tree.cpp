@@ -4,7 +4,7 @@
 namespace lzxd {
 
 Tree Tree::fromPathLengths(std::vector<uint8_t> lengths) {
-    CanonicalTree ctree(lengths);
+    CanonicalTree ctree(std::move(lengths));
     return ctree.createInstance().value();
 }
 
@@ -59,7 +59,7 @@ static Tree readPretree(BitStream& stream) {
         lengths[i] = stream.readBits<uint8_t>(4);
     }
 
-    return Tree::fromPathLengths(lengths);
+    return Tree::fromPathLengths(std::move(lengths));
 }
 
 void CanonicalTree::updateRangeWithPretree(BitStream& stream, size_t start, size_t end) {

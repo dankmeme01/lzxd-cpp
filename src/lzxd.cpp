@@ -112,18 +112,19 @@ size_t Decoder::decompressChunkInto(const uint8_t* data, size_t size, uint8_t* o
     auto chunkOffset = this->chunkOffset;
     this->chunkOffset += decodedLen;
 
-    auto view = this->window.pastView(decodedLen);
+    auto viewStart = this->window.pastView(decodedLen);
 
     // E8 fixups are disabled after 1GB of input data, or if the chunk size is too small.
     if (e8Translator && chunkOffset < 0x40000000 && decodedLen > 10) {
         // TODO
+        throw LzxdError("E8 translation not implemented!");
     }
 
     decodedChunks++;
 
-    std::memcpy(output, view.data(), view.size());
+    std::memcpy(output, viewStart, decodedLen);
 
-    return view.size();
+    return decodedLen;
 }
 
 Block Decoder::readBlock(BitStream& stream, const BlockHeader& header) {
