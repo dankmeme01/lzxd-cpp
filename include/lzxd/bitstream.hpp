@@ -7,7 +7,7 @@
 namespace lzxd {
 
 namespace detail {
-    template <std::integral T>
+    template <typename T>
     T byteswap(T input);
 } // namespace detail
 

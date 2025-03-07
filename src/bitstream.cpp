@@ -16,6 +16,18 @@
 # define BSWAP64(val) __builtin_bswap64(val)
 #endif
 
+#if defined __BYTE_ORDER__
+# if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#  define LZXD_LITTLE_ENDIAN
+# elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#  define LZXD_BIG_ENDIAN
+# endif
+#endif
+
+#if defined _MSC_VER
+# define LZXD_LITTLE_ENDIAN // assumption
+#endif
+
 namespace lzxd {
 
 namespace detail {
@@ -71,10 +83,10 @@ uint32_t BitStream::readU32le() {
     uint16_t lo = this->_readBitsOneWord(16);
     uint16_t hi = this->_readBitsOneWord(16);
 
-    if constexpr (std::endian::native == std::endian::big) {
-        lo = detail::byteswap(lo);
-        hi = detail::byteswap(hi);
-    }
+#ifdef LZXD_BIG_ENDIAN
+    lo = detail::byteswap(lo);
+    hi = detail::byteswap(hi);
+#endif
 
     uint32_t ret;
     std::memcpy(&ret, &lo, sizeof(uint16_t));
@@ -82,9 +94,9 @@ uint32_t BitStream::readU32le() {
 
     // IDK how correct this is lol
     // Hopefully no one is running this on a big endian system anyway
-    if constexpr (std::endian::native == std::endian::big) {
-        ret = detail::byteswap(ret);
-    }
+#ifdef LZXD_BIG_ENDIAN
+    ret = detail::byteswap(ret);
+#endif
 
     return ret;
 }
@@ -201,9 +213,9 @@ uint16_t BitStream::_peekBitsOneWord(size_t count) {
         n = 0;
     } else {
         std::memcpy(&n, m_data.data() + m_position, sizeof(uint16_t));
-        if constexpr (std::endian::native == std::endian::big) {
-            n = detail::byteswap(n);
-        }
+#ifdef LZXD_BIG_ENDIAN
+        n = detail::byteswap(n);
+#endif
     }
 
     uint16_t lo = detail::rotleftu16(n, count) & (((uint16_t)(1ul << count)) - 1);
@@ -251,9 +263,9 @@ void BitStream::_advanceBuffer() {
     std::memcpy(&m_nextNumber, m_data.data() + m_position, sizeof(uint16_t));
 
     // Since we read a little-endian integer, byteswap if we are on a big-endian architecture
-    if constexpr (std::endian::native == std::endian::big) {
-        m_nextNumber = detail::byteswap(m_nextNumber);
-    }
+#ifdef LZXD_BIG_ENDIAN
+    m_nextNumber = detail::byteswap(m_nextNumber);
+#endif
 
     m_position += sizeof(uint16_t);
 }

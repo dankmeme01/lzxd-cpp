@@ -194,7 +194,8 @@ void Decoder::firstChunk(BitStream& stream) {
     bool e8Translation = stream.readBit();
 
     if (e8Translation) {
-        this->e8Translator = detail::E8Translator{std::bit_cast<int32_t>(stream.readBits(32))};
+        throw lzxd::LzxdError("E8 translation not implemented!");
+        // this->e8Translator = detail::E8Translator{std::bit_cast<int32_t>(stream.readBits(32))};
     }
 }
 
