@@ -22,11 +22,11 @@ class Decoder {
 public:
     Decoder(size_t windowSize);
 
-    std::vector<uint8_t> decompressChunk(const std::vector<uint8_t>& data, size_t outputSize);
-    std::vector<uint8_t> decompressChunk(const uint8_t* data, size_t size, size_t outputSize);
+    std::vector<uint8_t> decompressChunk(const std::vector<uint8_t>& data, size_t outputSize = 32768);
+    std::vector<uint8_t> decompressChunk(const uint8_t* data, size_t size, size_t outputSize = 32768);
 
-    size_t decompressChunkInto(const std::vector<uint8_t>& data, uint8_t* output, size_t outputSize);
-    size_t decompressChunkInto(const uint8_t* data, size_t size, uint8_t* output, size_t outputSize);
+    size_t decompressChunkInto(const std::vector<uint8_t>& data, uint8_t* output, size_t outputSize = 32768);
+    size_t decompressChunkInto(const uint8_t* data, size_t size, uint8_t* output, size_t outputSize = 32768);
 
 private:
     size_t windowSize;

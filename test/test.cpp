@@ -95,7 +95,7 @@ void testDecoder() {
             0x00, 0x00, 'a', 'b', 'c', 0x00,
         };
 
-        lzxd::Decoder decoder(0x8000);
+        lzxd::Decoder decoder(0x80000);
         auto decompressed = decoder.decompressChunk(data, 3);
 
         auto dec = std::string(decompressed.begin(), decompressed.end());
@@ -104,7 +104,7 @@ void testDecoder() {
 }
 
 void decodeBlock(std::filesystem::path path) {
-    size_t windowSize = 0x8000;
+    constexpr size_t windowSize = 0x80000;
 
     // Read the file
     std::ifstream file(path, std::ios::binary);
@@ -116,7 +116,7 @@ void decodeBlock(std::filesystem::path path) {
     std::vector<uint8_t> data(std::istreambuf_iterator<char>(file), {});
 
     lzxd::Decoder decoder(windowSize);
-    auto decompressed = decoder.decompressChunk(data, 0x8000);
+    auto decompressed = decoder.decompressChunk(data, 32768);
 
     // Write file
     auto outpath = path.replace_extension(".out");
@@ -126,7 +126,10 @@ void decodeBlock(std::filesystem::path path) {
         return;
     }
 
+    std::cout << "Saving " << decompressed.size() << " bytes to " << outpath << std::endl;
+
     outfile.write(reinterpret_cast<const char*>(decompressed.data()), decompressed.size());
+    outfile.close();
 }
 
 void decodeDatabase(std::filesystem::path path) {
@@ -154,7 +157,7 @@ void decodeDatabase(std::filesystem::path path) {
     size_t dataBeginOffset = headerSize;
 
     size_t currentPos = dataBeginOffset;
-    constexpr size_t windowSize = 0x8000;
+    constexpr size_t windowSize = 0x80000;
 
     lzxd::Decoder decoder(windowSize);
 
@@ -169,7 +172,7 @@ void decodeDatabase(std::filesystem::path path) {
 
         std::cout << "Chunk of size " << compressedSize << std::endl;
 
-        auto dechunk = decoder.decompressChunk(data.data() + currentPos, compressedSize, windowSize);
+        auto dechunk = decoder.decompressChunk(data.data() + currentPos, compressedSize, 32768);
         output.insert(output.end(), dechunk.begin(), dechunk.end());
 
         currentPos += compressedSize;

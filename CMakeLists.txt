@@ -12,7 +12,7 @@ add_library(${PROJECT_NAME} STATIC ${SOURCES})
 target_include_directories(${PROJECT_NAME} PUBLIC "include")
 
 # Testing
-file(GLOB_RECURSE TEST_SOURCES "test/*.cpp")
+file(GLOB_RECURSE TEST_SOURCES "test/test.cpp")
 
 if (TEST_SOURCES)
     add_executable(${PROJECT_NAME}_test ${TEST_SOURCES})

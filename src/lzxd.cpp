@@ -169,7 +169,7 @@ Block Decoder::readBlock(BitStream& stream, const BlockHeader& header) {
             return AlignedOffsetBlock {
                 BaseBlock {header.size, header.size},
                 this->mainTree.createInstance().value(),
-                this->lengthTree.createInstance().value(),
+                this->lengthTree.createInstance(),
                 alignedOffsetTree
             };
         } break;
