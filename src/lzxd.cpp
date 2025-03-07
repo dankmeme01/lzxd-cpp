@@ -108,7 +108,7 @@ size_t Decoder::decompressChunkInto(const uint8_t* data, size_t size, uint8_t* o
             throw LzxdError("decompressChunkInto: advance is larger than remaining");
         }
 
-        this->currentBlock.remaining() -= advance;
+        this->currentBlock.remaining() -= (uint32_t) advance;
     }
 
     auto chunkOffset = this->chunkOffset;
@@ -177,12 +177,12 @@ Block Decoder::readBlock(BitStream& stream, const BlockHeader& header) {
             };
         } break;
 
-        case BlockType::Invalid: {
+        case BlockType::Invalid:
+        default: {
             // unreachable
             LZXD_ASSERT(false);
         } break;
     }
-
 }
 
 void Decoder::readMainAndLengthTrees(BitStream& stream) {
