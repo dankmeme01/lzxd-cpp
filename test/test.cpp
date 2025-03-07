@@ -178,6 +178,10 @@ void decodeDatabase(std::filesystem::path path) {
         currentPos += compressedSize;
     }
 
+    // write to file
+    std::ofstream outfile(path.replace_extension(".gmsodf.raw"), std::ios::binary);
+    outfile.write(reinterpret_cast<const char*>(output.data()), output.size());
+    outfile.close();
 }
 
 int main(int argc, const char** argv) {

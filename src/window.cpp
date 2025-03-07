@@ -6,6 +6,7 @@ namespace lzxd::detail {
 
 void Window::push(uint8_t byte) {
     this->data[this->position] = byte;
+    this->advance(1);
 }
 
 void Window::advance(size_t by) {

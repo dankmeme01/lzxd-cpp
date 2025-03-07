@@ -99,12 +99,11 @@ struct DecodeInfo {
 };
 
 static detail::DecodedPart decodeCompressedElement(BitStream& stream, uint32_t& outr0, uint32_t& outr1, uint32_t& outr2, DecodeInfo dinfo) {
-    // Decoding Matches and Literals (Aligned and Verbatim Blocks)
+    // decoding matches and literals (aligned and verbatim blocks)
     auto mainElement = dinfo.mainTree->decodeElement(stream);
 
     // check if it is a literal
     if (mainElement <= 255) {
-        outr0 = mainElement;
         return detail::DecodedSingle{static_cast<uint8_t>(mainElement)};
     }
 
