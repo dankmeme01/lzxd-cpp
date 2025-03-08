@@ -202,8 +202,11 @@ void Decoder::firstChunk(BitStream& stream) {
 }
 
 void Decoder::reset() {
+    auto wsize = this->windowSize;
+
     this->~Decoder();
-    new (this) Decoder(this->windowSize);
+
+    new (this) Decoder(wsize);
 }
 
 } // namespace lzxd
